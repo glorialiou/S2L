@@ -1,0 +1,1693 @@
+---
+title: "2021 S2L Eng Report"
+author: "Gloria Liou"
+date: "1/12/2022"
+output:
+  html_document:
+    toc: yes
+    fig_width: 20
+  pdf_document:
+    toc: yes
+---
+
+---
+<style>
+p {
+    font-size: 16px;
+    line-height: 24px;
+    margin: 0px 0px 12px 0px;
+}
+
+h1, h2, h3, h4, h5, h6, legend {
+    font-family: Franklin Gothic, regular;
+    font-weight: 700;
+    color: #8E6F3E;
+}
+</style>
+---
+
+
+```{r setup, include=FALSE, message = FALSE, warning = FALSE}
+knitr::opts_chunk$set(comment = NA, prompt = FALSE, cache = FALSE, echo = TRUE, results = 'asis', fig.width = 10, fig.height = 5)
+
+library(readr)
+library(dplyr)
+library(plyr)
+library(psych)
+library(knitr)
+library(summarytools)
+library(ggplot2)
+theme_set(theme_bw())
+library(cowplot)
+library(qwraps2)
+library(plotrix)
+library(tinytex)
+
+EPICS <- read_csv("EPICS_2019_cleanedbyFanyi.csv")
+ENGR <- read_csv("ENGR_2020_03.csv")
+ENG21 <- read_csv("ENG_2021.csv")
+
+# remove first 2 rows (not data)
+ENG21 <- ENG21[-c(1,2), ]
+
+# remove all graduates student respondents from the dataset:
+ENG21 <- ENG21[!ENG21$Year=='6',]
+
+```
+
+
+## 0. Demographics Composition
+
+```{r demo, echo = FALSE}
+st_options(footnote = NA,
+           subtitle.emphasis = FALSE)
+st_css()
+
+# international - 1 or 3
+# race - multiple selected --> multiracial
+# major - multiple selected --> double major
+ENG21$Year <- factor(ENG21$Year, levels = c(1, 2, 3, 4, 5),
+       labels = c("1st year", "2nd year", "3rd year", "4th year", ">= 5th year"))
+ENG21$Gender <- factor(ENG21$sex, levels = c(1,2,3),
+                   labels = c("Male", "Female", "Other"))
+ENG21$First_Gen <- factor(ENG21$`1st-gen`, levels = c(1, 2),
+                   labels = c("First Gen", "Not First Gen"))
+ENG21$International <- factor(ENG21$i18n, levels = c(1, 3),
+                       labels = c("International", "Not International"))
+ENG21$EPICS.01 <- factor(ENG21$EPICS, levels = c(1,2),
+                    labels = c("EPICS", "Not EPICS"))
+ENG21$Latino <- factor(ENG21$latinx, levels = c(1,2),
+                labels = c("Latino/a", "Not Latino/a"))
+
+ENG21$Ethnicity <- factor(ENG21$Eth, levels = c(1, 2, 3, 4, 5, 6),
+              labels = c("American Indian or Alaska Native",
+                         "Asian",
+                         "Black or African-American",
+                         "Native Hawaiian or Other Pacific Islander",
+                         "White",
+                         "Other"))
+ENG21$Ethnicity <- as.character(ENG21$Ethnicity)
+ENG21$Ethnicity[is.na(ENG21$Ethnicity)] <- "Multiracial"
+#remove american indian or alaska native and native hawaiian or other pacific islander because N is too small (3 and 1, respectively) and only one individual filled out anything besides demographics
+ENG21 <- ENG21[!(ENG21$Ethnicity == "American Indian or Alaska Native" | ENG21$Ethnicity == "Native Hawaiian or Other Pacific Islander"),]
+
+ENG21$Major.01 <- factor(ENG21$Major, levels = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19),
+              labels = c("Aeronautical and Astronautical Engineering",
+                         "Agricultural Engineering",
+                         "Biological Engineering",
+                         "Chemical Engineering",
+                         "Civil Engineering",
+                         "Computer Engineering",
+                         "Construction Engineering & Management",
+                         "Electrical Engineering",
+                         "Environmental and Ecological Engineering",
+                         "Environmental and Natural Resources Engineering",
+                         "First Year Engineering",
+                         "Industrial Engineering",
+                         "Interdisciplinary Engineering Studies",
+                         "Materials Engineering",
+                         "Mechanical Engineering",
+                         "Multidisciplinary Engineering",
+                         "Nuclear Engineering",
+                         "Other",
+                         "Biomedical Engineering"))
+ENG21$Major.01 <- as.character(ENG21$Major.01)
+ENG21$Major.01[is.na(ENG21$Major.01)] <- "Multiple Majors"
+#remove environmental and ecological engineering because only 2 students and neither filled out anything besides demographics
+ENG21 <- ENG21[!(ENG21$Major.01 == "Environmental and Natural Resources Engineering"),]
+
+
+demographics <- subset(ENG21, select = c(Year, Gender, Latino, Ethnicity, First_Gen, International, Major.01, EPICS.01))
+print(dfSummary(demographics, plain.ascii = FALSE,
+          report.nas = FALSE, 
+          valid.col = FALSE,
+          style = "grid", 
+          graph.magnif = 0.75, 
+          tmp.img.dir = "/tmp"))
+
+```
+
+## 1. Well-being
+#### 1.1 Life satisfaction
+```{r, Life satisfaction} 
+
+summaryDemo <- function(data=NULL, measurevar, groupvar, na.rm=FALSE){
+  var <- ENG21 %>%
+    group_by(.data[[groupvar]]) %>%
+    dplyr::summarise(mean = mean(.data[[measurevar]], na.rm = TRUE),
+              se = std.error(.data[[measurevar]]),
+              group = groupvar,
+              sample = n())%>%
+    dplyr::rename(demo = groupvar)
+  return(var)
+}
+
+ENG21$WB_1 = as.numeric(as.character(ENG21$WB_1))
+
+life_sat_byYear <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_1", groupvar=c("Year")))
+life_sat_byGen <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_1", groupvar=c("Gender")))
+life_sat_byLat <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_1", groupvar=c("Latino")))
+life_sat_byEth <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_1", groupvar=c("Ethnicity")))
+life_sat_by1stGen <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_1", groupvar=c("First_Gen")))
+life_sat_byInt <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_1", groupvar=c("International")))
+life_sat_byMajor <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_1", groupvar=c("Major.01")))
+life_sat_byEPICS <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_1", groupvar=c("EPICS.01")))
+
+life_sat_21 <- mean(ENG21$WB_1, na.rm=TRUE)
+life_sat_20 <- mean(ENGR$WB_1, na.rm=TRUE)
+life_sat_19 <- mean(EPICS$SWB_1_1, na.rm=TRUE)
+
+life_sat <- rbind(life_sat_byYear,
+                  life_sat_byGen,
+                  life_sat_byLat,
+                  life_sat_byEth,
+                  life_sat_by1stGen,
+                  life_sat_byInt,
+                  life_sat_byEPICS) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+
+# Life Satisfaction by Major
+life_sat_byMajor %>%
+  filter(!is.na(demo)) %>%
+  ggplot(life_sat_byMajor, mapping = aes(x= mean, y= demo, fill= demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(aes(xintercept = life_sat_21, colour = "2021 avg: 3.25")) +
+  geom_vline(aes(xintercept = life_sat_20, colour = "2020 avg: 3.21")) +
+  geom_vline(aes(xintercept = life_sat_19, colour = "2019 avg: 3.71")) +
+  labs(fill="Major Type", colour="Yearly Average") +
+  labs(title="I am satisfied with my life", x="Mean", y="Demographics") + 
+  scale_y_discrete(limits = rev(levels(life_sat_byMajor$demo))) +
+  coord_cartesian(xlim = c(1, 4)) +
+  scale_x_continuous(breaks = c(1:4), labels = c("Strongly Disagree", "Disagree", 
+                                                 "Neither Agree nor Disagree", "Agree")) +
+  theme(axis.text.x = element_text(angle=0, hjust=.5)) +
+  geom_text(aes(label = sample, x = 1.15), position=position_dodge(width=0.9))
+
+## Life Satisfaction By Demographic
+ggplot(life_sat, mapping = aes(x=mean, y=group, fill = reorder(demo, desc(demo)))) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label = mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = 1.15), position=position_dodge(width=0.9)) +
+  geom_text(aes(label = demo, x = 1.5), position=position_dodge(width=0.9)) +
+  geom_vline(aes(xintercept = life_sat_21, colour = "2021 avg: 3.25")) +
+  geom_vline(aes(xintercept = life_sat_20, colour = "2020 avg: 3.21")) +
+  geom_vline(aes(xintercept = life_sat_19, colour = "2019 avg: 3.71")) +
+  labs(fill="Demographic Group", colour="Yearly Average") +
+  labs(title="I am satisfied with my life", x="Mean", y="Demographics") + 
+  guides(fill = guide_legend(reverse=TRUE)) +
+  coord_cartesian(xlim = c(1, 4)) +
+  scale_x_continuous(breaks = c(1:4),
+                    labels = c("Strongly Disagree", "Disagree",
+                               "Neither Agree nor Disagree", "Agree")) +
+  theme(axis.text.x = element_text(angle=0, hjust=.5)) +
+  scale_fill_manual(values = c("First Gen" = "grey80", "Not First Gen" = "grey60", "EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","International" = "chocolate","Not International" = "chocolate4","Latino/a" = "coral1","Not Latino/a" = "coral3","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", "3rd year" = "grey70","4th year" = "grey 60",">= 5th year" = "grey50", "Asian" = "coral2", "Black or African-American" = "coral1", "White" = "coral3", "Other" = "coral1", "Multiracial" = "coral2"))
+```
+
+
+#### 1.2 Perceived health support 
+
+```{r,  Perceived health support}
+# MENTAL HEALTH
+ENG21$WB_2 = as.numeric(as.character(ENG21$WB_2))
+
+MH_byYear <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_2", groupvar=c("Year")))
+MH_byGen <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_2", groupvar=c("Gender")))
+MH_byLat <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_2", groupvar=c("Latino")))
+MH_byEth <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_2", groupvar=c("Ethnicity")))
+MH_by1stGen <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_2", groupvar=c("First_Gen")))
+MH_byInt <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_2", groupvar=c("International")))
+MH_byMajor <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_2", groupvar=c("Major.01"))) 
+MH_byEPICS <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_2", groupvar=c("EPICS.01")))
+
+MH_21 <- mean(ENG21$WB_2, na.rm=TRUE)
+MH_20 <- mean(ENGR$WB_2, na.rm=TRUE)
+
+MH <- rbind(MH_byYear, MH_byGen, MH_byLat, MH_byEth, MH_by1stGen, MH_byInt, MH_byEPICS) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+
+## Mental Health by Major
+ggplot(MH_byMajor, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(aes(xintercept = MH_21, colour = "2021 avg: 2.68")) +
+  geom_vline(aes(xintercept = MH_20, colour = "2020 avg: 2.59")) +
+  labs(fill="Major Type", colour="Yearly Average") +
+  labs(title="Purdue provides support for my mental health", x="Mean", y="Demographics") +
+  coord_cartesian(xlim = c(1, 4)) +
+  scale_x_continuous(breaks = c(1:4), labels = c("Strongly Disagree", "Disagree", 
+                                                 "Neither Agree nor Disagree", "Agree")) +
+  theme(axis.text.x = element_text(angle=0, hjust=.5)) +
+  geom_text(aes(label = sample, x = 1.15), position=position_dodge(width=0.9))
+
+## Mental Health by Demographic
+ggplot(MH, mapping = aes(x=mean, y=group, fill = reorder(demo, desc(demo)))) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = 1.15), position=position_dodge(width=0.9)) +
+  geom_text(aes(label = demo, x = 1.5), position=position_dodge(width=0.9)) +
+  geom_vline(aes(xintercept = MH_21, colour = "2021 avg: 2.68")) +
+  geom_vline(aes(xintercept = MH_20, colour = "2020 avg: 2.59")) +
+  labs(fill="Demographic Group", colour="Yearly Average") +
+  labs(title="Purdue provides support for my mental health", x="Mean", y="Demographics") +
+  guides(fill = guide_legend(reverse=TRUE)) +
+  coord_cartesian(xlim = c(1, 4)) +
+  scale_x_continuous(breaks = c(1:4),
+                    labels = c("Strongly Disagree", "Disagree",
+                               "Neither Agree nor Disagree", "Agree")) +
+  theme(axis.text.x = element_text(angle=0, hjust=.5)) +
+  scale_fill_manual(values = c("First Gen" = "grey80", "Not First Gen" = "grey60", "EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","International" = "chocolate","Not International" = "chocolate4","Latino/a" = "coral1","Not Latino/a" = "coral3","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", "3rd year" = "grey70","4th year" = "grey 60",">= 5th year" = "grey50", "Asian" = "coral2", "Black or African-American" = "coral1", "White" = "coral3", "Other" = "coral1", "Multiracial" = "coral2"))
+
+# PHYSICAL HEALTH
+ENG21$WB_3 = as.numeric(as.character(ENG21$WB_3))
+
+PH_byYear <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_3", groupvar=c("Year")))
+PH_byGen <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_3", groupvar=c("Gender")))
+PH_byLat <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_3", groupvar=c("Latino")))
+PH_byEth <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_3", groupvar=c("Ethnicity")))
+PH_by1stGen <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_3", groupvar=c("First_Gen")))
+PH_byInt <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_3", groupvar=c("International")))
+PH_byMajor <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_3", groupvar=c("Major.01"))) 
+PH_byEPICS <- as.data.frame(summaryDemo(ENG21, measurevar = "WB_3", groupvar=c("EPICS.01")))
+
+PH_21 <- mean(ENG21$WB_3, na.rm=TRUE)
+PH_20 <- mean(ENGR$WB_3, na.rm=TRUE)
+
+PH <- rbind(PH_byYear, PH_byGen, PH_byLat, PH_byEth, PH_by1stGen, PH_byInt, PH_byEPICS) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+
+## Physical Health by Major
+ggplot(PH_byMajor, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(aes(xintercept = PH_21, colour = "2021 avg: 3.48")) +
+  geom_vline(aes(xintercept = PH_20, colour = "2020 avg: 3.34")) +
+  labs(fill="Major Type", colour="Yearly Average") +
+  labs(title="Purdue provides support for my physical health", x="Mean", y="Demographics") + 
+  coord_cartesian(xlim = c(1, 4)) +
+  scale_x_continuous(breaks = c(1:4), labels = c("Strongly Disagree", "Disagree", 
+                                                 "Neither Agree nor Disagree", "Agree")) +
+  theme(axis.text.x = element_text(angle=0, hjust=.5)) +
+  geom_text(aes(label = sample, x = 1.15), position=position_dodge(width=0.9))
+
+## Physical Health by Demographic
+ggplot(PH, mapping = aes(x=mean, y=group, fill = reorder(demo, desc(demo)))) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = 1.15), position=position_dodge(width=0.9)) +
+  geom_text(aes(label = demo, x = 1.5), position=position_dodge(width=0.9)) +
+  geom_vline(aes(xintercept = PH_21, colour = "2021 avg: 3.48")) +
+  geom_vline(aes(xintercept = PH_20, colour = "2020 avg: 3.34")) +
+  labs(fill="Demographic Group", colour="Yearly Average") +
+  labs(title="Purdue provides support for my physical health", x="Mean", y="Demographics") + 
+  guides(fill = guide_legend(reverse=TRUE)) +
+  coord_cartesian(xlim = c(1, 4)) +
+  scale_x_continuous(breaks = c(1:4),
+                    labels = c("Strongly Disagree", "Disagree",
+                               "Neither Agree nor Disagree", "Agree")) +
+  theme(axis.text.x = element_text(angle=0, hjust=.5)) +
+  scale_fill_manual(values = c("First Gen" = "grey80", "Not First Gen" = "grey60", "EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","International" = "chocolate","Not International" = "chocolate4","Latino/a" = "coral1","Not Latino/a" = "coral3","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", "3rd year" = "grey70","4th year" = "grey 60",">= 5th year" = "grey50", "Asian" = "coral2", "Black or African-American" = "coral1", "White" = "coral3", "Other" = "coral1", "Multiracial" = "coral2"))
+```
+
+#### 1.3 Health Status
+
+```{r, Perceived health, Sleep, Diet} 
+## PERCEIVED HEALTH
+ENG21$H_1 = as.numeric(as.character(ENG21$H_1))
+
+PreH_byYear <- as.data.frame(summaryDemo(ENG21, measurevar = "H_1", groupvar=c("Year")))
+PreH_byGen <- as.data.frame(summaryDemo(ENG21, measurevar = "H_1", groupvar=c("Gender")))
+PreH_byLat <- as.data.frame(summaryDemo(ENG21, measurevar = "H_1", groupvar=c("Latino")))
+PreH_byEth <- as.data.frame(summaryDemo(ENG21, measurevar = "H_1", groupvar=c("Ethnicity")))
+PreH_by1stGen <- as.data.frame(summaryDemo(ENG21, measurevar = "H_1", groupvar=c("First_Gen")))
+PreH_byInt <- as.data.frame(summaryDemo(ENG21, measurevar = "H_1", groupvar=c("International")))
+PreH_byMajor <- as.data.frame(summaryDemo(ENG21, measurevar = "H_1", groupvar=c("Major.01"))) 
+PreH_byEPICS <- as.data.frame(summaryDemo(ENG21, measurevar = "H_1", groupvar=c("EPICS.01")))
+
+PreH_21 <- mean(ENG21$H_1, na.rm=TRUE)
+PreH_20 <- mean(ENGR$H_1, na.rm=TRUE)
+PreH_19 <- mean(EPICS$SWB_2_1, na.rm=TRUE)
+
+PreH <- rbind(PreH_byYear, PreH_byGen, PreH_byLat, PreH_byEth, PreH_by1stGen, PreH_byInt, PreH_byEPICS) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+
+## Perceived Health by Major
+ggplot(PreH_byMajor, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(aes(xintercept = PreH_21, colour = "2021 avg: 2.94")) +
+  geom_vline(aes(xintercept = PreH_20, colour = "2020 avg: 2.83")) +
+  geom_vline(aes(xintercept = PreH_19, colour = "2019 avg: 3.26")) +
+  labs(fill="Major Type", colour="Yearly Average") +
+  labs(title="Would you say your health in general is...", x="Mean", y="Demographics") + 
+  coord_cartesian(xlim = c(1, 4)) +
+  scale_x_continuous(breaks = c(1:4), labels = c("Poor", "Fair", "Good", "Very Good")) +
+  theme(axis.text.x = element_text(angle=0, hjust=.5)) +
+  geom_text(aes(label = sample, x = 1.15), position=position_dodge(width=0.9))
+
+## Perceived Health by Demographic
+ggplot(PreH, mapping = aes(x=mean, y=group, fill = reorder(demo, desc(demo)))) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = 1.15), position=position_dodge(width=0.9)) +
+  geom_text(aes(label = demo, x = 1.5), position=position_dodge(width=0.9)) +
+  geom_vline(aes(xintercept = PreH_21, colour = "2021 avg: 2.94")) +
+  geom_vline(aes(xintercept = PreH_20, colour = "2020 avg: 2.83")) +
+  geom_vline(aes(xintercept = PreH_19, colour = "2019 avg: 3.26")) +
+  labs(fill="Demographic Group", colour="Yearly Average") +
+  labs(title="Would you say your health in general is...", x="Mean", y="Demographics") + 
+  guides(fill = guide_legend(reverse=TRUE)) +
+  coord_cartesian(xlim = c(1, 4)) +
+  scale_x_continuous(breaks = c(1:4),
+                    labels = c("Poor", "Fair", "Good", "Very Good")) +
+  theme(axis.text.x = element_text(angle=0, hjust=.5)) +
+  scale_fill_manual(values = c("First Gen" = "grey80", "Not First Gen" = "grey60", "EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","International" = "chocolate","Not International" = "chocolate4","Latino/a" = "coral1","Not Latino/a" = "coral3","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", "3rd year" = "grey70","4th year" = "grey 60",">= 5th year" = "grey50", "Asian" = "coral2", "Black or African-American" = "coral1", "White" = "coral3", "Other" = "coral1", "Multiracial" = "coral2"))
+
+## SLEEP
+#START HERE
+Sleep_byYear <- as.data.frame(summaryDemo(ENGR, measurevar = "H_2", groupvar=c("Year")))
+Sleep_byEPICS <- as.data.frame(summaryDemo(ENGR, measurevar = "H_2", groupvar=c("EPICS")))
+Sleep_by1stGen <- as.data.frame(summaryDemo(ENGR, measurevar = "H_2", groupvar=c("X1st.gen")))
+Sleep_byGen <- as.data.frame(summaryDemo(ENGR, measurevar = "H_2", groupvar=c("sex")))
+Sleep_byFormat <- as.data.frame(summaryDemo(ENGR, measurevar = "H_2", groupvar=c("format")))
+Sleep_byEth <- as.data.frame(summaryDemo(ENGR, measurevar = "H_2", groupvar=c("Eth.RC.c")))
+Sleep_Major <- as.data.frame(summaryDemo(ENGR, measurevar = "H_2", groupvar=c("Major.04"))) 
+
+Sleep_20 <- mean(ENGR$H_2, na.rm=TRUE)
+
+Sleep <- rbind(Sleep_by1stGen, Sleep_byEPICS, Sleep_byFormat, Sleep_byGen, Sleep_byYear, Sleep_byEth) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+
+## Comparison by Major: Sleep
+ggplot(Sleep_Major, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(xintercept = Sleep_20, color = "orange") +
+  labs(title="Would you say your sleep in the past 2 weeks is...", x="Demographics", y="Mean") + 
+  theme(axis.text.x = element_text(angle=0, hjust=1)) +
+  geom_text(aes(label = sample, x = .15))
+
+## Comparison by Demographic: Sleep
+ggplot(Sleep, aes(x=mean, y=demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = .15)) +
+  geom_vline(xintercept = Sleep_20, color = "orange") +
+  labs(title="Would you say your sleep in the past 2 weeks is...", x="Demographics", y="Mean") + 
+  theme(legend.position = "top", axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_manual(values = c("First Gen" = "coral1", "Not First Gen" = "coral3",
+"EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","On campus" = "chocolate","Virtual" = "chocolate4","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", 
+"3rd year" = "grey70","4th year" = "grey 60","> 5 years" = "grey50","Graduate student" = "grey40", "Asian" = "coral1", "African-American" = "coral2",  "White" = "coral3", "Latino" = "coral4"))
+
+## Diet
+Diet_byYear <- as.data.frame(summaryDemo(ENGR, measurevar = "H_3", groupvar=c("Year")))
+Diet_byEPICS <- as.data.frame(summaryDemo(ENGR, measurevar = "H_3", groupvar=c("EPICS")))
+Diet_by1stGen <- as.data.frame(summaryDemo(ENGR, measurevar = "H_3", groupvar=c("X1st.gen")))
+Diet_byGen <- as.data.frame(summaryDemo(ENGR, measurevar = "H_3", groupvar=c("sex")))
+Diet_byFormat <- as.data.frame(summaryDemo(ENGR, measurevar = "H_3", groupvar=c("format")))
+Diet_byEth <- as.data.frame(summaryDemo(ENGR, measurevar = "H_3", groupvar=c("Eth.RC.c")))
+Diet_byMajor <- as.data.frame(summaryDemo(ENGR, measurevar = "H_3", groupvar=c("Major.04"))) 
+
+Diet_20 <- mean(ENGR$H_3, na.rm=TRUE)
+#PreH_19 <- mean(EPICS$SWB_2_1, na.rm=TRUE)
+
+Diet <- rbind(Diet_by1stGen, Diet_byEPICS, Diet_byFormat, Diet_byGen, Diet_byYear, Diet_byEth) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+
+## Comparison by Major: Diet
+ggplot(Diet_byMajor, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(xintercept = Diet_20, color = "orange") +
+  labs(title="Would you say your diet in the past 2 weeks is...", x="Demographics", y="Mean") + 
+  theme(axis.text.x = element_text(angle=0, hjust=1)) +
+  geom_text(aes(label = sample, x = .15))
+
+## Comparison by Demographic: Diet
+ggplot(Diet, aes(x=mean, y=demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = .15)) +
+  geom_vline(xintercept = Diet_20, color = "orange") +
+  labs(title="Would you say your diet in the past 2 weeks is...", x="Demographics", y="Mean") + 
+  theme(legend.position = "top", axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_manual(values = c("First Gen" = "coral1", "Not First Gen" = "coral3",
+"EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","On campus" = "chocolate","Virtual" = "chocolate4","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", 
+"3rd year" = "grey70","4th year" = "grey 60","> 5 years" = "grey50","Graduate student" = "grey40", "Asian" = "coral1", "African-American" = "coral2",  "White" = "coral3", "Latino" = "coral4"))
+```
+
+
+```{r Health, echo = FALSE}
+#
+#health_byEPICS <- as.data.frame(prop.table(table(ENGR[, c("H_1", "EPICS")]), 2))
+#
+#health_ENGR <- as.data.frame(prop.table(table(ENGR[, c("H_1")])))
+#health_ENGR <- dplyr::rename(health_ENGR, c("H_1" = Var1))
+#health_EPICS <- as.data.frame(prop.table(table(EPICS[, c("SWB_2_1")])))
+#health_EPICS <- dplyr::rename(health_EPICS, c("H_1" = Var1))
+#health_EPICS$source <- "2019 EPICS"
+#health_ENGR$source <- "2020 ENGR"
+#health <- merge(y = health_EPICS, x = health_ENGR,
+#                all = TRUE, by = c("H_1", "Freq"))
+#health$Source <- apply(health[c("source.x", "source.y")], 1, 
+#                          function(x) paste(na.omit(x), collapse = ""))
+#
+#health_g1 <- ggplot(health_byEPICS, aes(x = H_1, y = Freq, fill = EPICS)) +
+#  scale_fill_brewer(palette = "Pastel1") + geom_col(position = "dodge") + 
+#  geom_text(aes(label = sprintf("%.0f%%", Freq * 100)), 
+#            position = position_dodge(width = 0.9), vjust = -0.25) +
+#  ylab("Percentage") + ylim(0, 0.4) + 
+#  xlab("Perceived Health by EPICS in 2020 Fall")
+#health_g2 <- ggplot(health, aes(x = H_1, y = Freq, fill = Source)) +
+#  scale_fill_brewer(palette = "Pastel2") + geom_col(position = "dodge") + 
+#  geom_text(aes(label = sprintf("%.0f%%", Freq * 100)), 
+#            position = position_dodge(width = 0.9), vjust = -0.25) +
+#  ylab("Percentage") + ylim(0, 0.4) + 
+#  xlab("Comparison of Overall Health Status") 
+#
+#p_health <- plot_grid(health_g1, health_g2, labels = "AUTO")
+#title <- ggdraw() + 
+#  draw_label( "Would you say that in general your health is:",
+#              fontface = 'bold', x = 0, hjust = 0) +
+#  theme(plot.margin = margin(0, 0, 0, 7))
+#plot_grid(title, p_health, ncol = 1, rel_heights = c(0.1, 1))
+
+```
+
+
+```{r sleep/diet, echo = FALSE}
+#sleep_byEPICS <- as.data.frame(prop.table(table(ENGR[, c("H_2", "EPICS")]), 2)) 
+#sleep <- ggplot(sleep_byEPICS, aes(x = H_2, y = Freq, fill = EPICS)) +
+#  scale_fill_brewer(palette = "Pastel1") + geom_col(position = "dodge") + 
+#  geom_text(aes(label = sprintf("%.0f%%", Freq * 100)), 
+#            position = position_dodge(width = 0.9), vjust = -0.25) +
+#  ylab("Percentage") + xlab("Sleep by EPICS")
+#
+#diet_byEPICS <- as.data.frame(prop.table(table(ENGR[, c("H_3", "EPICS")]), 2))
+#diet <- ggplot(diet_byEPICS, aes(x = H_3, y = Freq, fill = EPICS)) +
+#  scale_fill_brewer(palette = "Pastel2") + geom_col(position = "dodge") + 
+#  geom_text(aes(label = sprintf("%.0f%%", Freq * 100)), 
+#            position = position_dodge(width = 0.9), vjust = -0.25) +
+#  ylab("Percentage") + xlab("Diet by EPICS") 
+#
+#p_H <- plot_grid(sleep, diet, labels = "AUTO")
+#title <- ggdraw() + 
+#  draw_label( "Would you say your sleep/diet in general is:",
+#              fontface = 'bold', x = 0, hjust = 0) + 
+#  theme(plot.margin = margin(0, 0, 0, 7))
+#plot_grid(title, p_H, ncol = 1, rel_heights = c(0.1, 1))
+#
+#sleep_ENGR <- as.data.frame(prop.table(table(ENGR[, c("H_2")])))
+#diet_ENGR <- as.data.frame(prop.table(table(ENGR[, c("H_3")])))
+#sleep_ENGR$source <- "Sleep"
+#diet_ENGR$source <- "Diet"
+#H <- merge(x = sleep_ENGR, y = diet_ENGR,
+#                all = TRUE, by = c("Var1", "Freq"))
+#H$Source <- apply(H[c("source.x", "source.y")], 1, 
+#                          function(x) paste(na.omit(x), collapse = ""))
+#ggplot(H, aes(x = Var1, y = Freq, fill = Source)) +
+#  scale_fill_brewer(palette = "Accent") + geom_col(position = "dodge") + 
+#  geom_text(aes(label = sprintf("%.0f%%", Freq * 100)), 
+#            position = position_dodge(width = 0.9), vjust = -0.25) +
+#  ylab("Percentage") + xlab("Conditions of Sleep and Diet") 
+``` 
+
+#### 1.4 Emotions
+
+##### 1.4.0 - Create Emotions Variables
+```{r Emotions v2} 
+PA_01_byYear <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_1", groupvar=c("Year")))
+PA_01_byEPICS <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_1", groupvar=c("EPICS")))
+PA_01_by1stGen <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_1", groupvar=c("X1st.gen")))
+PA_01_byGen <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_1", groupvar=c("sex")))
+PA_01_byFormat <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_1", groupvar=c("format")))
+PA_01_byEth <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_1", groupvar=c("Eth.RC.c")))
+PA_01_Major <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_1", groupvar=c("Major.04"))) 
+PA_01 <- rbind(PA_01_by1stGen, PA_01_byEPICS, PA_01_byFormat, PA_01_byGen, PA_01_byYear, PA_01_byEth) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+
+PA_02_byYear <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_2", groupvar=c("Year")))
+PA_02_byEPICS <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_2", groupvar=c("EPICS")))
+PA_02_by1stGen <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_2", groupvar=c("X1st.gen")))
+PA_02_byGen <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_2", groupvar=c("sex")))
+PA_02_byFormat <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_2", groupvar=c("format")))
+PA_02_byEth <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_2", groupvar=c("Eth.RC.c")))
+PA_02_Major <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_2", groupvar=c("Major.04"))) 
+PA_02 <- rbind(PA_02_by1stGen, PA_02_byEPICS, PA_02_byFormat, PA_02_byGen, PA_02_byYear, PA_02_byEth) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+
+PA_03_byYear <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_3", groupvar=c("Year")))
+PA_03_byEPICS <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_3", groupvar=c("EPICS")))
+PA_03_by1stGen <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_3", groupvar=c("X1st.gen")))
+PA_03_byGen <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_3", groupvar=c("sex")))
+PA_03_byFormat <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_3", groupvar=c("format")))
+PA_03_byEth <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_3", groupvar=c("Eth.RC.c")))
+PA_03_Major <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_3", groupvar=c("Major.04"))) 
+PA_03 <- rbind(PA_03_by1stGen, PA_03_byEPICS, PA_03_byFormat, PA_03_byGen, PA_03_byYear, PA_03_byEth) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+
+PA_04_byYear <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_4", groupvar=c("Year")))
+PA_04_byEPICS <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_4", groupvar=c("EPICS")))
+PA_04_by1stGen <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_4", groupvar=c("X1st.gen")))
+PA_04_byGen <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_4", groupvar=c("sex")))
+PA_04_byFormat <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_4", groupvar=c("format")))
+PA_04_byEth <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_4", groupvar=c("Eth.RC.c")))
+PA_04_Major <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_4", groupvar=c("Major.04"))) 
+PA_04 <- rbind(PA_04_by1stGen, PA_04_byEPICS, PA_04_byFormat, PA_04_byGen, PA_04_byYear, PA_04_byEth) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+
+PA_05_byYear <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_5", groupvar=c("Year")))
+PA_05_byEPICS <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_5", groupvar=c("EPICS")))
+PA_05_by1stGen <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_5", groupvar=c("X1st.gen")))
+PA_05_byGen <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_5", groupvar=c("sex")))
+PA_05_byFormat <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_5", groupvar=c("format")))
+PA_05_byEth <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_5", groupvar=c("Eth.RC.c")))
+PA_05_Major <- as.data.frame(summaryDemo(ENGR, measurevar = "PA_5", groupvar=c("Major.04"))) 
+PA_05 <- rbind(PA_05_by1stGen, PA_05_byEPICS, PA_05_byFormat, PA_05_byGen, PA_05_byYear, PA_05_byEth) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+
+PA_01_20 <- mean(ENGR$PA_1, na.rm=TRUE) # I felt happy
+PA_02_20 <- mean(ENGR$PA_2, na.rm=TRUE) # I feel depressed
+PA_03_20 <- mean(ENGR$PA_3, na.rm=TRUE) # I felt stressed
+PA_04_20 <- mean(ENGR$PA_4, na.rm=TRUE) # I felt grateful
+PA_05_20 <- mean(ENGR$PA_5, na.rm=TRUE) # I felt anxious
+
+PA_01_19 <- mean(EPICS$PANAS_1, na.rm=TRUE) # I felt happy
+PA_02_19 <- mean(EPICS$PANAS_3, na.rm=TRUE) # I feel depressed
+PA_03_19 <- mean(EPICS$PANAS_4, na.rm=TRUE) # I felt stressed
+PA_04_19 <- mean(EPICS$PANAS_5, na.rm=TRUE) # I felt grateful
+```
+
+##### 1.4.1 - "Happy"
+
+```{r}
+## Comparison by Major: Happy
+ggplot(PA_01_Major, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(xintercept = PA_01_20, color = "orange") +
+  geom_vline(xintercept = PA_01_19, color = "red") +
+  labs(title="Frequency of self-reported happiness in the past two weeks", x="Demographics", y="Mean") + 
+  theme(axis.text.x = element_text(angle=0, hjust=1)) +
+  geom_text(aes(label = sample, x = .15))
+
+## Comparison by Demographic: Happy
+ggplot(PA_01, aes(x=mean, y=demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = .15)) +
+  geom_vline(xintercept = PA_01_20, color = "orange") +
+  geom_vline(xintercept = PA_01_19, color = "red") +
+  labs(title="Frequency of self-reported happiness in the past two weeks", x="Demographics", y="Mean") + 
+  theme(legend.position = "top", axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_manual(values = c("First Gen" = "coral1", "Not First Gen" = "coral3", "EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","On campus" = "chocolate","Virtual" = "chocolate4","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", "3rd year" = "grey70","4th year" = "grey 60","> 5 years" = "grey50","Graduate student" = "grey40", "Asian" = "coral1", "African-American" = "coral2",  "White" = "coral3", "Latino" = "coral4"))
+```
+
+
+##### 1.4.2 - "Depressed"
+
+```{r}
+## Comparison by Major: Depressed
+ggplot(PA_02_Major, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(xintercept = PA_02_20, color = "orange") +
+  geom_vline(xintercept = PA_02_19, color = "red") +
+  labs(title="Frequency of self-reported depression in the past two weeks", x="Demographics", y="Mean") + 
+  theme(axis.text.x = element_text(angle=0, hjust=1)) +
+  geom_text(aes(label = sample, x = .15))
+
+## Comparison by Demographic: Depressed
+ggplot(PA_02, aes(x=mean, y=demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = .15)) +
+  geom_vline(xintercept = PA_02_20, color = "orange") +
+  geom_vline(xintercept = PA_02_19, color = "red") +
+  labs(title="Frequency of self-reported depression in the past two weeks", x="Demographics", y="Mean") + 
+  theme(legend.position = "top", axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_manual(values = c("First Gen" = "coral1", "Not First Gen" = "coral3", "EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","On campus" = "chocolate","Virtual" = "chocolate4","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", "3rd year" = "grey70","4th year" = "grey 60","> 5 years" = "grey50","Graduate student" = "grey40", "Asian" = "coral1", "African-American" = "coral2",  "White" = "coral3", "Latino" = "coral4"))
+```
+
+
+##### 1.4.3 - "Stressed"
+
+```{r}
+## Comparison by Major: Stressed
+ggplot(PA_03_Major, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(xintercept = PA_03_20, color = "orange") +
+  geom_vline(xintercept = PA_03_19, color = "red") +
+  labs(title="Frequency of self-reported stress in the past two weeks", x="Demographics", y="Mean") + 
+  theme(axis.text.x = element_text(angle=0, hjust=1)) +
+  geom_text(aes(label = sample, x = .15))
+
+## Comparison by Demographic: Stressed
+ggplot(PA_03, aes(x=mean, y=demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = .15)) +
+  geom_vline(xintercept = PA_03_20, color = "orange") +
+  geom_vline(xintercept = PA_03_19, color = "red") +
+  labs(title="Frequency of self-reported stress in the past two weeks", x="Demographics", y="Mean") + 
+  theme(legend.position = "top", axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_manual(values = c("First Gen" = "coral1", "Not First Gen" = "coral3",
+"EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","On campus" = "chocolate","Virtual" = "chocolate4","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", 
+"3rd year" = "grey70","4th year" = "grey 60","> 5 years" = "grey50","Graduate student" = "grey40", "Asian" = "coral1", "African-American" = "coral2",  "White" = "coral3", "Latino" = "coral4"))
+```
+
+
+##### 1.4.4 - "Grateful"
+
+```{r}
+## Comparison by Major: Grateful
+ggplot(PA_04_Major, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(xintercept = PA_04_20, color = "orange") +
+  geom_vline(xintercept = PA_04_19, color = "red") +
+  labs(title="Frequency of self-reported gratefulness in the past two weeks", x="Demographics", y="Mean") + 
+  theme(axis.text.x = element_text(angle=0, hjust=1)) +
+  geom_text(aes(label = sample, x = .15))
+
+## Comparison by Demographic: Stressed
+ggplot(PA_04, aes(x=mean, y=demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = .15)) +
+  geom_vline(xintercept = PA_04_20, color = "orange") +
+  geom_vline(xintercept = PA_04_19, color = "red") +
+  labs(title="Frequency of self-reported gratefulness in the past two weeks", x="Demographics", y="Mean") + 
+  theme(legend.position = "top", axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_manual(values = c("First Gen" = "coral1", "Not First Gen" = "coral3",
+"EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","On campus" = "chocolate","Virtual" = "chocolate4","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", 
+"3rd year" = "grey70","4th year" = "grey 60","> 5 years" = "grey50","Graduate student" = "grey40", "Asian" = "coral1", "African-American" = "coral2",  "White" = "coral3", "Latino" = "coral4"))
+```
+
+
+##### 1.4.5 - "Anxious"
+
+```{r}
+## Comparison by Major: Anxious
+ggplot(PA_05_Major, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(xintercept = PA_05_20, color = "orange") +
+  labs(title="Frequency of self-reported anxiety in the past two weeks", x="Demographics", y="Mean") + 
+  theme(axis.text.x = element_text(angle=0, hjust=1)) +
+  geom_text(aes(label = sample, x = .15))
+
+## Comparison by Demographic: Stressed
+ggplot(PA_05, aes(x=mean, y=demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = .15)) +
+  geom_vline(xintercept = PA_05_20, color = "orange") +
+  labs(title="Frequency of self-reported anxiety in the past two weeks", x="Demographics", y="Mean") + 
+  theme(legend.position = "top", axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_manual(values = c("First Gen" = "coral1", "Not First Gen" = "coral3",
+"EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","On campus" = "chocolate","Virtual" = "chocolate4","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", 
+"3rd year" = "grey70","4th year" = "grey 60","> 5 years" = "grey50","Graduate student" = "grey40", "Asian" = "coral1", "African-American" = "coral2",  "White" = "coral3", "Latino" = "coral4"))
+```
+
+
+
+#### 1.5 College Experience
+
+##### 1.5.1 College Experience Variables
+
+```{r} 
+CollExp_01_byYear <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_1", groupvar=c("Year")))
+CollExp_01_byEPICS <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_1", groupvar=c("EPICS")))
+CollExp_01_by1stGen <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_1", groupvar=c("X1st.gen")))
+CollExp_01_byGen <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_1", groupvar=c("sex")))
+CollExp_01_byFormat <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_1", groupvar=c("format")))
+CollExp_01_byEth <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_1", groupvar=c("Eth.RC.c")))
+CollExp_01_Major <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_1", groupvar=c("Major.04"))) 
+CollExp_01 <- rbind(CollExp_01_by1stGen, 
+                    CollExp_01_byEPICS, 
+                    CollExp_01_byFormat, 
+                    CollExp_01_byGen, 
+                    CollExp_01_byYear, 
+                    CollExp_01_byEth) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+
+CollExp_02_byYear <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_2", groupvar=c("Year")))
+CollExp_02_byEPICS <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_2", groupvar=c("EPICS")))
+CollExp_02_by1stGen <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_2", groupvar=c("X1st.gen")))
+CollExp_02_byGen <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_2", groupvar=c("sex")))
+CollExp_02_byFormat <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_2", groupvar=c("format")))
+CollExp_02_byEth <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_2", groupvar=c("Eth.RC.c")))
+CollExp_02_Major <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_2", groupvar=c("Major.04"))) 
+CollExp_02 <- rbind(CollExp_02_by1stGen, 
+                    CollExp_02_byEPICS, 
+                    CollExp_02_byFormat, 
+                    CollExp_02_byGen, 
+                    CollExp_02_byYear, 
+                    CollExp_02_byEth) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+
+CollExp_03_byYear <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_3", groupvar=c("Year")))
+CollExp_03_byEPICS <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_3", groupvar=c("EPICS")))
+CollExp_03_by1stGen <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_3", groupvar=c("X1st.gen")))
+CollExp_03_byGen <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_3", groupvar=c("sex")))
+CollExp_03_byFormat <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_3", groupvar=c("format")))
+CollExp_03_byEth <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_3", groupvar=c("Eth.RC.c")))
+CollExp_03_Major <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_3", groupvar=c("Major.04"))) 
+CollExp_03 <- rbind(CollExp_03_by1stGen, 
+                    CollExp_03_byEPICS, 
+                    CollExp_03_byFormat, 
+                    CollExp_03_byGen, 
+                    CollExp_03_byYear, 
+                    CollExp_03_byEth) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+
+CollExp_04_byYear <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_4", groupvar=c("Year")))
+CollExp_04_byEPICS <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_4", groupvar=c("EPICS")))
+CollExp_04_by1stGen <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_4", groupvar=c("X1st.gen")))
+CollExp_04_byGen <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_4", groupvar=c("sex")))
+CollExp_04_byFormat <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_4", groupvar=c("format")))
+CollExp_04_byEth <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_4", groupvar=c("Eth.RC.c")))
+CollExp_04_Major <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_4", groupvar=c("Major.04"))) 
+CollExp_04 <- rbind(CollExp_04_by1stGen, 
+                    CollExp_04_byEPICS, 
+                    CollExp_04_byFormat, 
+                    CollExp_04_byGen, 
+                    CollExp_04_byYear, 
+                    CollExp_04_byEth) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+
+CollExp_05_byYear <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_5", groupvar=c("Year")))
+CollExp_05_byEPICS <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_5", groupvar=c("EPICS")))
+CollExp_05_by1stGen <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_5", groupvar=c("X1st.gen")))
+CollExp_05_byGen <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_5", groupvar=c("sex")))
+CollExp_05_byFormat <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_5", groupvar=c("format")))
+CollExp_05_byEth <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_5", groupvar=c("Eth.RC.c")))
+CollExp_05_Major <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_5", groupvar=c("Major.04"))) 
+CollExp_05 <- rbind(CollExp_05_by1stGen, 
+                    CollExp_05_byEPICS, 
+                    CollExp_05_byFormat, 
+                    CollExp_05_byGen, 
+                    CollExp_05_byYear, 
+                    CollExp_05_byEth) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+
+CollExp_06_byYear <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_6", groupvar=c("Year")))
+CollExp_06_byEPICS <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_6", groupvar=c("EPICS")))
+CollExp_06_by1stGen <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_6", groupvar=c("X1st.gen")))
+CollExp_06_byGen <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_6", groupvar=c("sex")))
+CollExp_06_byFormat <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_6", groupvar=c("format")))
+CollExp_06_byEth <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_6", groupvar=c("Eth.RC.c")))
+CollExp_06_Major <- as.data.frame(summaryDemo(ENGR, measurevar = "Big6_6", groupvar=c("Major.04"))) 
+CollExp_06 <- rbind(CollExp_06_by1stGen, 
+                    CollExp_06_byEPICS, 
+                    CollExp_06_byFormat, 
+                    CollExp_06_byGen, 
+                    CollExp_06_byYear, 
+                    CollExp_06_byEth) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+
+CollExp_01_20 <- mean(ENGR$Big6_1, na.rm=TRUE) 
+CollExp_02_20 <- mean(ENGR$Big6_2, na.rm=TRUE) 
+CollExp_03_20 <- mean(ENGR$Big6_3, na.rm=TRUE) 
+CollExp_04_20 <- mean(ENGR$Big6_4, na.rm=TRUE)
+CollExp_05_20 <- mean(ENGR$Big6_5, na.rm=TRUE) 
+CollExp_06_20 <- mean(ENGR$Big6_6, na.rm=TRUE)
+```
+
+##### 1.5.2: College Experience Composite
+
+```{r 6.1 College Experience Composite} 
+ENGR.Coll.Exp <- data.frame(ENGR$Big6_1, ENGR$Big6_2, ENGR$Big6_3, ENGR$Big6_4, ENGR$Big6_5, ENGR$Big6_6)
+
+ENGR.Coll.Exp.list <- list(ENGR.Coll.Exp = c(1,2,3,4,5,6))
+
+ENGR.Coll.Exp.scores <- scoreItems(ENGR.Coll.Exp.list, ENGR.Coll.Exp, impute = FALSE, min = 1, max = 5)
+describe(ENGR.Coll.Exp.scores$scores)
+ENGR.Coll.Exp.scores$scores[ENGR.Coll.Exp.scores$missing > 0] <- NA
+describe(ENGR.Coll.Exp.scores$scores)
+summary(ENGR.Coll.Exp.scores$scores)
+ENGR.Coll.Exp.scores$alpha
+# alpha is only = .64, not thrilling! Might be better item by item
+ENGR.Coll.Exp.scores <- ENGR.Coll.Exp.scores$scores
+ENGR$ENGR.Coll.Exp.composite <- ENGR.Coll.Exp.scores[,]
+
+CollExp_byYear <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.Coll.Exp.composite", groupvar=c("Year")))
+CollExp_byEPICS <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.Coll.Exp.composite", groupvar=c("EPICS")))
+CollExp_by1stGen <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.Coll.Exp.composite", groupvar=c("X1st.gen")))
+CollExp_byGen <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.Coll.Exp.composite", groupvar=c("sex")))
+CollExp_byFormat <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.Coll.Exp.composite", groupvar=c("format")))
+CollExp_byEth <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.Coll.Exp.composite", groupvar=c("Eth.RC.c")))
+CollExp_Major <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.Coll.Exp.composite", groupvar=c("Major.04"))) 
+CollExp <- rbind(CollExp_by1stGen, CollExp_byEPICS, CollExp_byFormat, CollExp_byGen, CollExp_byYear, CollExp_byEth) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+CollExp_20 <- mean(ENGR$ENGR.Coll.Exp.composite, na.rm=TRUE) 
+
+## Comparison by Major: Happy
+ggplot(CollExp_Major, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(xintercept = CollExp_20, color = "orange") +
+  labs(title="Quality of Purdue Experience (composite)", x="Demographics", y="Mean") + 
+  theme(axis.text.x = element_text(angle=0, hjust=1)) +
+  geom_text(aes(label = sample, x = .15))
+
+## Comparison by Demographic: Happy
+ggplot(CollExp, aes(x=mean, y=demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = .15)) +
+  geom_vline(xintercept = CollExp_20, color = "orange") +
+  labs(title="Quality of Purdue Experience (composite)", x="Demographics", y="Mean") + 
+  theme(legend.position = "top", axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_manual(values = c("First Gen" = "coral1", "Not First Gen" = "coral3",
+"EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","On campus" = "chocolate","Virtual" = "chocolate4","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", 
+"3rd year" = "grey70","4th year" = "grey 60","> 5 years" = "grey50","Graduate student" = "grey40", "Asian" = "coral1", "African-American" = "coral2",  "White" = "coral3", "Latino" = "coral4"))
+```
+
+
+##### 1.5.3: "I had at least one professor at Purdue University who made me excited about learning."
+
+```{r}
+## Comparison by Major: Anxious
+ggplot(CollExp_01_Major, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(xintercept = CollExp_01_20, color = "orange") +
+  labs(title="I had at least one professor at Purdue University who made me excited about learning", x="Demographics", y="Mean") +
+  theme(axis.text.x = element_text(angle=0, hjust=1)) +
+  geom_text(aes(label = sample, x = .15))
+
+## Comparison by Demographic: Stressed
+ggplot(CollExp_01, aes(x=mean, y=demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = .15)) +
+  geom_vline(xintercept = CollExp_01_20, color = "orange") +
+  labs(title="I had at least one professor at Purdue University who made me excited about learning", x="Demographics", y="Mean") +
+  theme(legend.position = "top", axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_manual(values = c("First Gen" = "coral1", "Not First Gen" = "coral3",
+"EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","On campus" = "chocolate","Virtual" = "chocolate4","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", 
+"3rd year" = "grey70","4th year" = "grey 60","> 5 years" = "grey50","Graduate student" = "grey40", "Asian" = "coral1", "African-American" = "coral2",  "White" = "coral3", "Latino" = "coral4"))
+```
+
+
+##### 1.5.4: "My professors at Purdue University cared about me as a person."
+
+```{r}
+## Comparison by Major: Anxious
+ggplot(CollExp_02_Major, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(xintercept = CollExp_02_20, color = "orange") +
+  labs(title="My professors at Purdue University cared about me as a person", x="Demographics", y="Mean") + 
+  theme(axis.text.x = element_text(angle=0, hjust=1)) +
+  geom_text(aes(label = sample, x = .15))
+
+## Comparison by Demographic: Stressed
+ggplot(CollExp_02, aes(x=mean, y=demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = .15)) +
+  geom_vline(xintercept = CollExp_02_20, color = "orange") +
+  labs(title="My professors at Purdue University cared about me as a person", x="Demographics", y="Mean") + 
+  theme(legend.position = "top", axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_manual(values = c("First Gen" = "coral1", "Not First Gen" = "coral3",
+"EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","On campus" = "chocolate","Virtual" = "chocolate4","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", 
+"3rd year" = "grey70","4th year" = "grey 60","> 5 years" = "grey50","Graduate student" = "grey40", "Asian" = "coral1", "African-American" = "coral2",  "White" = "coral3", "Latino" = "coral4"))
+```
+
+##### 1.5.5: "I had a mentor who encouraged me to pursue my goals and dreams."
+
+```{r}
+## Comparison by Major: Anxious
+ggplot(CollExp_03_Major, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(xintercept = CollExp_03_20, color = "orange") +
+  labs(title="I had a mentor who encouraged me to pursue my goals and dreams", x="Demographics", y="Mean") + 
+  theme(axis.text.x = element_text(angle=0, hjust=1)) +
+  geom_text(aes(label = sample, x = .15))
+
+## Comparison by Demographic: Stressed
+ggplot(CollExp_03, aes(x=mean, y=demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = .15)) +
+  geom_vline(xintercept = CollExp_03_20, color = "orange") +
+  labs(title="I had a mentor who encouraged me to pursue my goals and dreams", x="Demographics", y="Mean") + 
+  theme(legend.position = "top", axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_manual(values = c("First Gen" = "coral1", "Not First Gen" = "coral3",
+"EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","On campus" = "chocolate","Virtual" = "chocolate4","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", 
+"3rd year" = "grey70","4th year" = "grey 60","> 5 years" = "grey50","Graduate student" = "grey40", "Asian" = "coral1", "African-American" = "coral2",  "White" = "coral3", "Latino" = "coral4"))
+```
+
+##### 1.5.6: "I worked on a project that took a semester or more to complete."
+
+```{r}
+## Comparison by Major: Anxious
+ggplot(CollExp_04_Major, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(xintercept = CollExp_04_20, color = "orange") +
+  labs(title="I worked on a project that took a semester or more to complete", x="Demographics", y="Mean") + 
+  theme(axis.text.x = element_text(angle=0, hjust=1)) +
+  geom_text(aes(label = sample, x = .15))
+
+## Comparison by Demographic: Stressed
+ggplot(CollExp_04, aes(x=mean, y=demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = .15)) +
+  geom_vline(xintercept = CollExp_04_20, color = "orange") +
+  labs(title="I worked on a project that took a semester or more to complete", x="Demographics", y="Mean") + 
+  theme(legend.position = "top", axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_manual(values = c("First Gen" = "coral1", "Not First Gen" = "coral3",
+"EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","On campus" = "chocolate","Virtual" = "chocolate4","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", 
+"3rd year" = "grey70","4th year" = "grey 60","> 5 years" = "grey50","Graduate student" = "grey40", "Asian" = "coral1", "African-American" = "coral2",  "White" = "coral3", "Latino" = "coral4"))
+```
+
+##### 1.5.7: "I had an internship or job that allowed me to apply what I was learning in the classroom."
+
+```{r}
+## Comparison by Major: Anxious
+ggplot(CollExp_05_Major, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(xintercept = CollExp_05_20, color = "orange") +
+  labs(title="I had an internship or job that allowed me to apply what I was learning in the classroom", x="Demographics", y="Mean") + 
+  theme(axis.text.x = element_text(angle=0, hjust=1)) +
+  geom_text(aes(label = sample, x = .15))
+
+## Comparison by Demographic: Stressed
+ggplot(CollExp_05, aes(x=mean, y=demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = .15)) +
+  geom_vline(xintercept = CollExp_05_20, color = "orange") +
+  labs(title="I had an internship or job that allowed me to apply what I was learning in the classroom", x="Demographics", y="Mean") + 
+  theme(legend.position = "top", axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_manual(values = c("First Gen" = "coral1", "Not First Gen" = "coral3",
+"EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","On campus" = "chocolate","Virtual" = "chocolate4","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", 
+"3rd year" = "grey70","4th year" = "grey 60","> 5 years" = "grey50","Graduate student" = "grey40", "Asian" = "coral1", "African-American" = "coral2",  "White" = "coral3", "Latino" = "coral4"))
+```
+
+##### 1.5.8: "I was extremely active in extracurricular activities and organizations while I attended Purdue University."
+
+```{r}
+## Comparison by Major: Anxious
+ggplot(CollExp_06_Major, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(xintercept = CollExp_06_20, color = "orange") +
+  labs(title="I was extremely active in extracurricular activities and organizations while I attended Purdue University", x="Demographics", y="Mean") + 
+  theme(axis.text.x = element_text(angle=0, hjust=1)) +
+  geom_text(aes(label = sample, x = .15))
+
+## Comparison by Demographic: Stressed
+ggplot(CollExp_06, aes(x=mean, y=demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = .15)) +
+  geom_vline(xintercept = CollExp_06_20, color = "orange") +
+  labs(title="I was extremely active in extracurricular activities and organizations while I attended Purdue University", x="Demographics", y="Mean") + 
+  theme(legend.position = "top", axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_manual(values = c("First Gen" = "coral1", "Not First Gen" = "coral3",
+"EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","On campus" = "chocolate","Virtual" = "chocolate4","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", 
+"3rd year" = "grey70","4th year" = "grey 60","> 5 years" = "grey50","Graduate student" = "grey40", "Asian" = "coral1", "African-American" = "coral2",  "White" = "coral3", "Latino" = "coral4"))
+```
+
+
+```{r Experience, echo = FALSE, message = FALSE, warning = FALSE}
+##### Composite Score
+#ENGR$Experience = rowMeans(ENGR[,c(20:25)])
+
+##### Table
+#ENGR_Experience_summary <- 
+#  list("Composite Score of College Experience" =
+#         list("mean (sd)" = ~ qwraps2::mean_sd(ENGR$Experience, na_rm = TRUE),
+#              "95% CI"    = ~ qwraps2::frmtci(mean_ci(ENGR$Experience, na_rm = TRUE), show_level = TRUE)),
+#       "I had at least one professor at Purdue University who made me excited about learning" =
+#         list("mean (sd)" = ~ qwraps2::mean_sd(ENGR$BIG6_1, na_rm = TRUE),
+#              "95% CI"    = ~ qwraps2::frmtci(mean_ci(ENGR$BIG6_1, na_rm = TRUE), show_level = TRUE)),
+#       "My professors at Purdue University cared about me as a person" =
+#         list("mean (sd)" = ~ qwraps2::mean_sd(ENGR$BIG6_2, na_rm = TRUE),
+#              "95% CI"    = ~ qwraps2::frmtci(mean_ci(ENGR$BIG6_2, na_rm = TRUE), show_level = TRUE)),
+#       "I had a mentor who encouraged me to pursue my goals and dreams" = 
+#         list("mean (sd)" = ~ qwraps2::mean_sd(ENGR$BIG6_3, na_rm = TRUE),
+#              "95% CI"    = ~ qwraps2::frmtci(mean_ci(ENGR$BIG6_3, na_rm = TRUE), show_level = TRUE)),
+#       "I worked on a project that took a semester or more to complete" = 
+#         list("mean (sd)" = ~ qwraps2::mean_sd(ENGR$BIG6_4, na_rm = TRUE),
+#              "95% CI"    = ~ qwraps2::frmtci(mean_ci(ENGR$BIG6_4, na_rm = TRUE), show_level = TRUE)),
+#       "I had an internship or job that allowed me to apply what I was learning in the classroom" = 
+#         list("mean (sd)" = ~ qwraps2::mean_sd(ENGR$BIG6_5, na_rm = TRUE),
+#              "95% CI"    = ~ qwraps2::frmtci(mean_ci(ENGR$BIG6_5, na_rm = TRUE), show_level = TRUE)),
+#       "I was extremely active in extracurricular activities and organizations while I attended Purdue University" = 
+#         list("mean (sd)" = ~ qwraps2::mean_sd(ENGR$BIG6_6, na_rm = TRUE),
+#              "95% CI"    = ~ qwraps2::frmtci(mean_ci(ENGR$BIG6_6, na_rm = TRUE), show_level = TRUE))
+#  )
+#
+#ENGR_Experience <- summary_table(ENGR, ENGR_Experience_summary)
+#Experience_by_EPICS <- summary_table(group_by(ENGR, EPICS), ENGR_Experience_summary)
+#
+#ENGR_Experience_summary <- cbind(ENGR_Experience, Experience_by_EPICS)
+#ENGR_Experience_summary
+
+```
+
+
+
+
+
+
+
+## 2. Personality and Individual Differences
+#### 2.1 Grit
+
+##### 2.1.1 Passion
+
+```{r}  
+## Passion
+Grit_Pass_byYear <- as.data.frame(summaryDemo(ENGR, measurevar = "PSN", groupvar=c("Year")))
+Grit_Pass_byEPICS <- as.data.frame(summaryDemo(ENGR, measurevar = "PSN", groupvar=c("EPICS")))
+Grit_Pass_by1stGen <- as.data.frame(summaryDemo(ENGR, measurevar = "PSN", groupvar=c("X1st.gen")))
+Grit_Pass_byGen <- as.data.frame(summaryDemo(ENGR, measurevar = "PSN", groupvar=c("sex")))
+Grit_Pass_byFormat <- as.data.frame(summaryDemo(ENGR, measurevar = "PSN", groupvar=c("format")))
+Grit_Pass_byEth <- as.data.frame(summaryDemo(ENGR, measurevar = "PSN", groupvar=c("Eth.RC.c")))
+Grit_Pass_Major <- as.data.frame(summaryDemo(ENGR, measurevar = "PSN", groupvar=c("Major.04"))) 
+
+Grit_Pass_20 <- mean(ENGR$PSN, na.rm=TRUE)
+
+Grit_Pass <- rbind(Grit_Pass_by1stGen, Grit_Pass_byEPICS, Grit_Pass_byFormat, Grit_Pass_byGen, Grit_Pass_byYear, Grit_Pass_byEth) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+
+## Comparison by Major: Grit-Passion
+ggplot(Grit_Pass_Major, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(xintercept = Grit_Pass_20, color = "orange") +
+  labs(title="Self-reported Grit-Passion", x="Demographics", y="Mean") + 
+  theme(axis.text.x = element_text(angle=0, hjust=1)) +
+  geom_text(aes(label = sample, x = .15))
+
+## Comparison by Demographic: Grit-Passion
+ggplot(Grit_Pass, aes(x=mean, y=demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = .15)) +
+  geom_vline(xintercept = Grit_Pass_20, color = "orange") +
+  labs(title="Self-reported Grit-Passion", x="Demographics", y="Mean") + 
+  theme(legend.position = "top", axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_manual(values = c("First Gen" = "coral1", "Not First Gen" = "coral3",
+"EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","On campus" = "chocolate","Virtual" = "chocolate4","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", 
+"3rd year" = "grey70","4th year" = "grey 60","> 5 years" = "grey50","Graduate student" = "grey40", "Asian" = "coral1", "African-American" = "coral2",  "White" = "coral3", "Latino" = "coral4"))
+```
+
+##### 2.1.2 Perserverance
+
+```{r} 
+## Perserverance
+Grit_Persv_byYear <- as.data.frame(summaryDemo(ENGR, measurevar = "PSV", groupvar=c("Year")))
+Grit_Persv_byEPICS <- as.data.frame(summaryDemo(ENGR, measurevar = "PSV", groupvar=c("EPICS")))
+Grit_Persv_by1stGen <- as.data.frame(summaryDemo(ENGR, measurevar = "PSV", groupvar=c("X1st.gen")))
+Grit_Persv_byGen <- as.data.frame(summaryDemo(ENGR, measurevar = "PSV", groupvar=c("sex")))
+Grit_Persv_byFormat <- as.data.frame(summaryDemo(ENGR, measurevar = "PSV", groupvar=c("format")))
+Grit_Persv_byEth <- as.data.frame(summaryDemo(ENGR, measurevar = "PSV", groupvar=c("Eth.RC.c")))
+Grit_Persv_Major <- as.data.frame(summaryDemo(ENGR, measurevar = "PSV", groupvar=c("Major.04"))) 
+
+Grit_Persv_20 <- mean(ENGR$PSV, na.rm=TRUE)
+
+Grit_Persv <- rbind(Grit_Persv_by1stGen, Grit_Persv_byEPICS, Grit_Persv_byFormat, Grit_Persv_byGen, Grit_Persv_byYear, Grit_Persv_byEth) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+
+## Comparison by Major: Grit-Perserverance
+ggplot(Grit_Persv_Major, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(xintercept = Grit_Persv_20, color = "orange") +
+  labs(title="Self-reported Grit-Perserverance", x="Demographics", y="Mean") + 
+  theme(axis.text.x = element_text(angle=0, hjust=1)) +
+  geom_text(aes(label = sample, x = .15))
+
+## Comparison by Demographic: Grit-Perserverance
+ggplot(Grit_Persv, aes(x=mean, y=demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = .15)) +
+  geom_vline(xintercept = Grit_Persv_20, color = "orange") +
+  labs(title="Self-reported Grit-Perserverance", x="Demographics", y="Mean") + 
+  theme(legend.position = "top", axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_manual(values = c("First Gen" = "coral1", "Not First Gen" = "coral3",
+"EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","On campus" = "chocolate","Virtual" = "chocolate4","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", 
+"3rd year" = "grey70","4th year" = "grey 60","> 5 years" = "grey50","Graduate student" = "grey40", "Asian" = "coral1", "African-American" = "coral2",  "White" = "coral3", "Latino" = "coral4"))
+```
+
+
+
+#### 2.2 Growth Mindset
+
+```{r}
+ENGR.GRO <- data.frame(ENGR$GRO_1, ENGR$GRO_2, ENGR$GRO_3)
+
+ENGR.GRO.list <- list(ENGR.GRO = c(-1, -2, -3))
+
+ENGR.GRO.scores <- scoreItems(ENGR.GRO.list, ENGR.GRO, impute = FALSE)
+describe(ENGR.GRO.scores$scores)
+summary(ENGR.GRO.scores$scores)
+ENGR.GRO.scores$alpha
+# alpha is .91
+ENGR.GRO.scores <- ENGR.GRO.scores$scores
+ENGR$ENGR.GRO.composite <- ENGR.GRO.scores[,]
+
+GRO_byYear <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.GRO.composite", groupvar=c("Year")))
+GRO_byEPICS <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.GRO.composite", groupvar=c("EPICS")))
+GRO_by1stGen <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.GRO.composite", groupvar=c("X1st.gen")))
+GRO_byGen <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.GRO.composite", groupvar=c("sex")))
+GRO_byFormat <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.GRO.composite", groupvar=c("format")))
+GRO_byEth <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.GRO.composite", groupvar=c("Eth.RC.c")))
+GRO_Major <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.GRO.composite", groupvar=c("Major.04"))) 
+GRO <- rbind(GRO_by1stGen, GRO_byEPICS, GRO_byFormat, GRO_byGen, GRO_byYear, GRO_byEth) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+GRO_20 <- mean(ENGR$ENGR.GRO.composite, na.rm=TRUE)
+
+## Comparison by Major: Growth Mindset
+ggplot(GRO_Major, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(xintercept = GRO_20, color = "orange") +
+  labs(title="Growth Mindset", x="Demographics", y="Mean") + 
+  theme(axis.text.x = element_text(angle=0, hjust=1)) +
+  geom_text(aes(label = sample, x = .15))
+
+## Comparison by Demographic: Growth Mindset
+ggplot(GRO, aes(x=mean, y=demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = .15)) +
+  geom_vline(xintercept = GRO_20, color = "orange") +
+  labs(title="Growth Mindset", x="Demographics", y="Mean") + 
+  theme(legend.position = "top", axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_manual(values = c("First Gen" = "coral1", "Not First Gen" = "coral3", "EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","On campus" = "chocolate","Virtual" = "chocolate4","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", "3rd year" = "grey70","4th year" = "grey 60","> 5 years" = "grey50","Graduate student" = "grey40", "Asian" = "coral1", "African-American" = "coral2",  "White" = "coral3", "Latino" = "coral4"))
+```
+
+
+#### 2.3 Resilience
+
+```{r}
+ENGR.BRS <- data.frame(ENGR$BRS_1, ENGR$BRS_2, ENGR$BRS_3, ENGR$BRS_4, ENGR$BRS_5, ENGR$BRS_6)
+
+ENGR.BRS.list <- list(ENGR.LSE = c(1, -2, 3, -4, 5, -6))
+
+ENGR.BRS.scores <- scoreItems(ENGR.BRS.list, ENGR.BRS, impute = FALSE)
+describe(ENGR.BRS.scores$scores)
+summary(ENGR.BRS.scores$scores)
+ENGR.BRS.scores$alpha
+# alpha is .87, very good!
+ENGR.BRS.scores <- ENGR.BRS.scores$scores
+ENGR$ENGR.BRS.composite <- ENGR.BRS.scores[,]
+
+BRS_byYear <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.BRS.composite", groupvar=c("Year")))
+BRS_byEPICS <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.BRS.composite", groupvar=c("EPICS")))
+BRS_by1stGen <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.BRS.composite", groupvar=c("X1st.gen")))
+BRS_byGen <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.BRS.composite", groupvar=c("sex")))
+BRS_byFormat <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.BRS.composite", groupvar=c("format")))
+BRS_byEth <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.BRS.composite", groupvar=c("Eth.RC.c")))
+BRS_Major <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.BRS.composite", groupvar=c("Major.04"))) 
+BRS <- rbind(BRS_by1stGen, BRS_byEPICS, BRS_byFormat, BRS_byGen, BRS_byYear, BRS_byEth) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+BRS_20 <- mean(ENGR$ENGR.BRS.composite, na.rm=TRUE)
+
+## Comparison by Major: Resilience
+ggplot(BRS_Major, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(xintercept = BRS_20, color = "orange") +
+  labs(title="Resilience", x="Demographics", y="Mean") + 
+  theme(axis.text.x = element_text(angle=0, hjust=1)) +
+  geom_text(aes(label = sample, x = .15))
+
+## Comparison by Demographic: Resilience
+ggplot(BRS, aes(x=mean, y=demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = .15)) +
+  geom_vline(xintercept = BRS_20, color = "orange") +
+  labs(title="Resilience", x="Demographics", y="Mean") + 
+  theme(legend.position = "top", axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_manual(values = c("First Gen" = "coral1", "Not First Gen" = "coral3", "EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","On campus" = "chocolate","Virtual" = "chocolate4","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", "3rd year" = "grey70","4th year" = "grey 60","> 5 years" = "grey50","Graduate student" = "grey40", "Asian" = "coral1", "African-American" = "coral2",  "White" = "coral3", "Latino" = "coral4"))
+```
+
+
+#### 2.4 Impact: absorption, use of abilities, autonomy, purpose, optimism
+
+```{r}
+# Create 2020 Impact
+ENGR.IMP <- data.frame(ENGR$IMP_1, ENGR$IMP_2, ENGR$IMP_3, ENGR$IMP_4, ENGR$IMP_5, ENGR$IMP_6)
+ENGR.IMP.list <- list(ENGR.IMP = c(1, 2,-3, 4, 5, 6))
+ENGR.IMP.scores <- scoreItems(ENGR.IMP.list, ENGR.IMP, impute = FALSE)
+describe(ENGR.IMP.scores$scores)
+summary(ENGR.IMP.scores$scores)
+ENGR.IMP.scores$alpha
+# alpha is .78
+ENGR.IMP.scores <- ENGR.IMP.scores$scores
+ENGR$ENGR.IMP.composite <- ENGR.IMP.scores[,]
+
+# Create 2019 Impact
+EPICS.POS <- data.frame(EPICS$POS_1, EPICS$POS_2, EPICS$POS_3, EPICS$POS_4, EPICS$POS_5)
+EPICS.POS.list <- list(EPICS.POS = c(1, 2,-3, 4, 5))
+EPICS.POS.scores <- scoreItems(EPICS.POS.list, EPICS.POS, impute = FALSE)
+describe(EPICS.POS.scores$scores)
+summary(EPICS.POS.scores$scores)
+EPICS.POS.scores$alpha
+# alpha is .68
+EPICS.POS.scores <- EPICS.POS.scores$scores
+EPICS$EPICS.POS.composite <- EPICS.POS.scores[,]
+
+# Create Graph Variables 
+IMP_byYear <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.IMP.composite", groupvar=c("Year")))
+IMP_byEPICS <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.IMP.composite", groupvar=c("EPICS")))
+IMP_by1stGen <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.IMP.composite", groupvar=c("X1st.gen")))
+IMP_byGen <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.IMP.composite", groupvar=c("sex")))
+IMP_byFormat <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.IMP.composite", groupvar=c("format")))
+IMP_byEth <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.IMP.composite", groupvar=c("Eth.RC.c")))
+IMP_Major <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.IMP.composite", groupvar=c("Major.04"))) 
+IMP <- rbind(IMP_by1stGen, IMP_byEPICS, IMP_byFormat, IMP_byGen, IMP_byYear, IMP_byEth) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+IMP_20 <- mean(ENGR$ENGR.IMP.composite, na.rm=TRUE)
+IMP_19 <- mean(EPICS$EPICS.POS.composite, na.rm=TRUE) 
+
+## Comparison by Major: Impact
+ggplot(IMP_Major, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(xintercept = IMP_20, color = "orange") +
+  geom_vline(xintercept = IMP_19, color = "red") +
+  labs(title="Impact", x="Demographics", y="Mean") + 
+  theme(axis.text.x = element_text(angle=0, hjust=1)) +
+  geom_text(aes(label = sample, x = .15))
+
+## Comparison by Demographic: Impact
+ggplot(IMP, aes(x=mean, y=demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = .15)) +
+  geom_vline(xintercept = IMP_20, color = "orange") +
+  geom_vline(xintercept = IMP_19, color = "red") +
+  labs(title="Impact", x="Demographics", y="Mean") + 
+  theme(legend.position = "top", axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_manual(values = c("First Gen" = "coral1", "Not First Gen" = "coral3", "EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","On campus" = "chocolate","Virtual" = "chocolate4","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", "3rd year" = "grey70","4th year" = "grey 60","> 5 years" = "grey50","Graduate student" = "grey40", "Asian" = "coral1", "African-American" = "coral2",  "White" = "coral3", "Latino" = "coral4"))
+```
+
+
+#### 2.5 Networks Scale
+
+```{r}
+# Create 2020 Networks 
+ENGR.NET <- data.frame(ENGR$NET_1, ENGR$NET_2, ENGR$NET_3, ENGR$NET_4, ENGR$NET_5, ENGR$NET_6, ENGR$NET_7, ENGR$NET_8)
+ENGR.NET.list <- list(ENGR.NET = c(1, 2, 3, 4, 5, 6, -7, 8))
+# Item 7 ("I feel lonely") should be r-scored in this context
+ENGR.NET.scores <- scoreItems(ENGR.NET.list, ENGR.NET, impute = FALSE)
+describe(ENGR.NET.scores$scores)
+summary(ENGR.NET.scores$scores)
+ENGR.NET.scores$alpha
+# alpha is .66
+ENGR.NET.scores <- ENGR.NET.scores$scores
+ENGR$ENGR.NET.composite <- ENGR.NET.scores[,]
+
+# Create 2019 Networks
+EPICS.NET <- data.frame(EPICS$Network_1, EPICS$Network_2, EPICS$Network_3, EPICS$Network_4, EPICS$Network_5, EPICS$Network_6, EPICS$Network_7, EPICS$Network_8, EPICS$Network_9)
+EPICS.NET.list <- list(EPICS.NET = c(1, 2, 3, 4, 5, 6, -7, 8, 9))
+# Item 7 ("I feel lonely") should be r-scored in this context
+EPICS.NET.scores <- scoreItems(EPICS.NET.list, EPICS.NET, impute = FALSE)
+describe(EPICS.NET.scores$scores)
+summary(EPICS.NET.scores$scores)
+EPICS.NET.scores$alpha
+# alpha is .78
+EPICS.NET.scores <- EPICS.NET.scores$scores
+EPICS$EPICS.NET.composite <- EPICS.NET.scores[,]
+
+# Create Graph Variables
+NET_byYear <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.NET.composite", groupvar=c("Year")))
+NET_byEPICS <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.NET.composite", groupvar=c("EPICS")))
+NET_by1stGen <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.NET.composite", groupvar=c("X1st.gen")))
+NET_byGen <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.NET.composite", groupvar=c("sex")))
+NET_byFormat <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.NET.composite", groupvar=c("format")))
+NET_byEth <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.NET.composite", groupvar=c("Eth.RC.c")))
+NET_Major <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.NET.composite", groupvar=c("Major.04"))) 
+NET <- rbind(NET_by1stGen, NET_byEPICS, NET_byFormat, NET_byGen, NET_byYear, NET_byEth) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+NET_20 <- mean(ENGR$ENGR.NET.composite, na.rm=TRUE)
+NET_19 <- mean(EPICS$EPICS.NET.composite, na.rm=TRUE) 
+
+## Comparison by Major: Networks
+ggplot(NET_Major, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(xintercept = NET_20, color = "orange") +
+  geom_vline(xintercept = NET_19, color = "red") +
+  labs(title="Networks", x="Demographics", y="Mean") + 
+  theme(axis.text.x = element_text(angle=0, hjust=1)) +
+  geom_text(aes(label = sample, x = .15))
+
+## Comparison by Demographic: Networks
+ggplot(NET, aes(x=mean, y=demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = .15)) +
+  geom_vline(xintercept = NET_20, color = "orange") +
+  geom_vline(xintercept = NET_19, color = "red") +
+  labs(title="Networks", x="Demographics", y="Mean") + 
+  theme(legend.position = "top", axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_manual(values = c("First Gen" = "coral1", "Not First Gen" = "coral3", "EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","On campus" = "chocolate","Virtual" = "chocolate4","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", "3rd year" = "grey70","4th year" = "grey 60","> 5 years" = "grey50","Graduate student" = "grey40", "Asian" = "coral1", "African-American" = "coral2",  "White" = "coral3", "Latino" = "coral4"))
+
+```
+
+
+## 3. Leadership and Professional Development
+
+##### 3.1 Leadership self-efficacy
+
+```{r}  
+ENGR.LSE <- data.frame(ENGR$LSE_1, ENGR$LSE_2, ENGR$LSE_3, ENGR$LSE_4, ENGR$LSE_5, ENGR$LSE_6, ENGR$LSE_7, ENGR$LSE_8, ENGR$LSE_9, ENGR$LSE_10, ENGR$LSE_11, ENGR$LSE_12)
+
+ENGR.LSE.list <- list(ENGR.LSE = c(1,2,3,4,5,6,7,8,9,10,11,12))
+
+ENGR.LSE.scores <- scoreItems(ENGR.LSE.list, ENGR.LSE, impute = FALSE)
+describe(ENGR.LSE.scores$scores)
+ENGR.LSE.scores$scores[ENGR.LSE.scores$missing > 0] <- NA
+describe(ENGR.LSE.scores$scores)
+summary(ENGR.LSE.scores$scores)
+ENGR.LSE.scores$alpha
+# alpha is .94, very good!
+ENGR.LSE.scores <- ENGR.LSE.scores$scores
+ENGR$ENGR.LSE.composite <- ENGR.LSE.scores[,]
+
+LSE_byYear <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.LSE.composite", groupvar=c("Year")))
+LSE_byEPICS <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.LSE.composite", groupvar=c("EPICS")))
+LSE_by1stGen <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.LSE.composite", groupvar=c("X1st.gen")))
+LSE_byGen <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.LSE.composite", groupvar=c("sex")))
+LSE_byFormat <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.LSE.composite", groupvar=c("format")))
+LSE_byEth <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.LSE.composite", groupvar=c("Eth.RC.c")))
+LSE_Major <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.LSE.composite", groupvar=c("Major.04"))) 
+LSE <- rbind(LSE_by1stGen, LSE_byEPICS, LSE_byFormat, LSE_byGen, LSE_byYear, LSE_byEth) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+LSE_20 <- mean(ENGR$ENGR.LSE.composite, na.rm=TRUE)
+
+## Comparison by Major: Leadership self-efficacy
+ggplot(LSE_Major, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(xintercept = LSE_20, color = "orange") +
+  labs(title="Leadership self-efficacy", x="Demographics", y="Mean") + 
+  theme(axis.text.x = element_text(angle=0, hjust=1)) +
+  geom_text(aes(label = sample, x = .15))
+
+## Comparison by Demographic: Leadership self-efficacy
+ggplot(LSE, aes(x=mean, y=demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = .15)) +
+  geom_vline(xintercept = LSE_20, color = "orange") +
+  labs(title="Leadership self-efficacy", x="Demographics", y="Mean") + 
+  theme(legend.position = "top", axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_manual(values = c("First Gen" = "coral1", "Not First Gen" = "coral3",
+"EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","On campus" = "chocolate","Virtual" = "chocolate4","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", 
+"3rd year" = "grey70","4th year" = "grey 60","> 5 years" = "grey50","Graduate student" = "grey40", "Asian" = "coral1", "African-American" = "coral2",  "White" = "coral3", "Latino" = "coral4"))
+```
+
+
+##### 3.2 Perspective-taking
+
+```{r} 
+# Create 2020 Perspective Taking Variable
+ENGR.PS.2020 <- data.frame(ENGR$PER_2, ENGR$PER_3)
+ENGR.PS.list <- list(ENGR.PS.2020 = c(1,2))
+ENGR.PS.scores <- scoreItems(ENGR.PS.list, ENGR.PS.2020, impute = FALSE)
+describe(ENGR.PS.scores$scores)
+summary(ENGR.PS.scores$scores)
+ENGR.PS.scores$alpha
+# alpha is .50
+ENGR.PS.scores <- ENGR.PS.scores$scores
+ENGR$ENGR.PS.composite <- ENGR.PS.scores[,]
+
+
+# Create 2019 Perspective Taking Variable
+EPICS.PS.2019 <- data.frame(EPICS$CIVIC_1, EPICS$CIVIC_2, EPICS$CIVIC_3)
+EPICS.PS.list <- list(EPICS.PS.2019 = c(1, 2, 3))
+EPICS.PS.scores <- scoreItems(EPICS.PS.list, EPICS.PS.2019, impute = FALSE)
+describe(EPICS.PS.scores$scores)
+summary(EPICS.PS.scores$scores)
+EPICS.PS.scores$alpha
+# alpha is .77
+EPICS.PS.scores <- EPICS.PS.scores$scores
+EPICS$EPICS.PS.composite <- EPICS.PS.scores[,]
+
+PS_byYear <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.PS.composite", groupvar=c("Year")))
+PS_byEPICS <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.PS.composite", groupvar=c("EPICS")))
+PS_by1stGen <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.PS.composite", groupvar=c("X1st.gen")))
+PS_byGen <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.PS.composite", groupvar=c("sex")))
+PS_byFormat <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.PS.composite", groupvar=c("format")))
+PS_byEth <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.PS.composite", groupvar=c("Eth.RC.c")))
+PS_Major <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.PS.composite", groupvar=c("Major.04"))) 
+PS <- rbind(PS_by1stGen, PS_byEPICS, PS_byFormat, PS_byGen, PS_byYear, PS_byEth) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+PS_20 <- mean(ENGR$ENGR.PS.composite, na.rm=TRUE)
+PS_19 <- mean(EPICS$EPICS.PS.composite, na.rm=TRUE)
+
+
+## Comparison by Major: Perspective Taking
+ggplot(PS_Major, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(xintercept = PS_20, color = "orange") +
+  geom_vline(xintercept = PS_19, color = "red") +
+  labs(title="Perspective Taking", x="Demographics", y="Mean") + 
+  theme(axis.text.x = element_text(angle=0, hjust=1)) +
+  geom_text(aes(label = sample, x = .15))
+
+## Comparison by Demographic: Perspective Taking
+ggplot(PS, aes(x=mean, y=demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = .15)) +
+  geom_vline(xintercept = PS_20, color = "orange") +
+  geom_vline(xintercept = PS_19, color = "red") +
+  labs(title="Perspective Taking", x="Demographics", y="Mean") + 
+  theme(legend.position = "top", axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_manual(values = c("First Gen" = "coral1", "Not First Gen" = "coral3",
+"EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","On campus" = "chocolate","Virtual" = "chocolate4","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", 
+"3rd year" = "grey70","4th year" = "grey 60","> 5 years" = "grey50","Graduate student" = "grey40", "Asian" = "coral1", "African-American" = "coral2",  "White" = "coral3", "Latino" = "coral4"))
+```
+
+##### 3.3 Opportunities to take on leadership and professional experiences
+
+```{r}
+ENGR.Opportunities <- data.frame(ENGR$OPP_1, ENGR$OPP_2, ENGR$OPP_3, ENGR$OPP_4)
+ENGR.Opportunities.list <- list(ENGR.Opportunities = c(1,2,3,4))
+ENGR.Opportunities.scores <- scoreItems(ENGR.Opportunities.list, ENGR.Opportunities, impute = FALSE)
+describe(ENGR.Opportunities.scores$scores)
+#ENGR.Opportunities.scores$scores[ENGR.Opportunities.scores$missing > 0] <- NA
+#describe(ENGR.Opportunities.scores$scores)
+summary(ENGR.Opportunities.scores$scores)
+ENGR.Opportunities.scores$alpha
+# alpha is .739
+ENGR.Opportunities.scores <- ENGR.Opportunities.scores$scores
+ENGR$ENGR.Opportunities.composite <- ENGR.Opportunities.scores[,]
+
+OPP_byYear <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.Opportunities.composite", groupvar=c("Year")))
+OPP_byEPICS <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.Opportunities.composite", groupvar=c("EPICS")))
+OPP_by1stGen <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.Opportunities.composite", groupvar=c("X1st.gen")))
+OPP_byGen <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.Opportunities.composite", groupvar=c("sex")))
+OPP_byFormat <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.Opportunities.composite", groupvar=c("format")))
+OPP_byEth <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.Opportunities.composite", groupvar=c("Eth.RC.c")))
+OPP_Major <- as.data.frame(summaryDemo(ENGR, measurevar = "ENGR.Opportunities.composite", groupvar=c("Major.04"))) 
+OPP <- rbind(OPP_by1stGen, OPP_byEPICS, OPP_byFormat, OPP_byGen, OPP_byYear, OPP_byEth) %>%
+  mutate_at(2:3, round, 2) %>%
+  na.omit
+OPP_20 <- mean(ENGR$ENGR.Opportunities.composite, na.rm=TRUE)
+
+## Comparison by Major: Opportunities to take on leadership and professional experiences
+ggplot(OPP_Major, aes(x= mean, y= demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label= round (mean,2)), 
+            position=position_dodge(width=0.9), vjust=-.25) +
+  geom_vline(xintercept = OPP_20, color = "orange") +
+  labs(title="Opportunities to take on leadership and professional experiences", x="Demographics", y="Mean") + 
+  theme(axis.text.x = element_text(angle=0, hjust=1)) +
+  geom_text(aes(label = sample, x = .15))
+
+## Comparison by Demographic: Opportunities to take on leadership and professional experiences
+ggplot(OPP, aes(x=mean, y=demo, fill = demo)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(xmin=mean-se, xmax=mean+se), width=.1,
+                    position=position_dodge(.9)) +
+  geom_text(aes(label=mean), position=position_dodge(width=0.9), vjust=-.25) +
+  geom_text(aes(label = sample, x = .15)) +
+  geom_vline(xintercept = OPP_20, color = "orange") +
+  labs(title="Opportunities to take on leadership and professional experiences", x="Demographics", y="Mean") + 
+  theme(legend.position = "top", axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_manual(values = c("First Gen" = "coral1", "Not First Gen" = "coral3",
+"EPICS" = "dodgerblue1","Not EPICS" = "dodgerblue3","On campus" = "chocolate","Virtual" = "chocolate4","Male" = "deepskyblue1","Female" = "deepskyblue3","Other" = "deepskyblue4","1st year" = "grey90","2nd year" = "grey80", 
+"3rd year" = "grey70","4th year" = "grey 60","> 5 years" = "grey50","Graduate student" = "grey40", "Asian" = "coral1", "African-American" = "coral2",  "White" = "coral3", "Latino" = "coral4"))
+```
+
+
